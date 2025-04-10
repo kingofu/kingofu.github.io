@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Double Integral Visualization (dydx - 2 Views)</title> <!-- Updated Title -->
+    <!-- 使用最新的Plotly版本 -->
+    <script src="plotly-2.24.1.min.js"></script>
+    <script src="math.min.js"></script>
+
+    <!-- Optimized MathJax config -->
+    <script>
+      MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          processEscapes: true,
+          packages: {'[+]': ['noerrors', 'noundefined']}
+        },
+        startup: {
+          ready: () => {
+            MathJax.startup.defaultReady();
+            MathJax.typesetPromise();
+          }
+        },
+        options: {
+          enableMenu: false
+        }
+      };
+    </script>
+    <script src="mathjax/tex-mml-chtml.js" async></script>   
+    <style>
+        /* Styles remain the same */
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .plot-container { display: flex; gap: 20px; height: 500px; }
+        .plot { flex: 1; border: 1px solid #ddd; border-radius: 5px; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .controls { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .control-group { flex: 1; min-width: 250px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        button { padding: 8px 15px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; transition: background-color 0.3s; }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        select, input { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
+        input[type="text"]:disabled, input[type="number"]:disabled, select:disabled { background-color: #e9e9e9; cursor: not-allowed; }
+        h1 { color: #333; text-align: center; }
+        h2 { color: #333; margin-top: 0; font-size: 1.2em; }
+        .description { background-color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .status { padding: 10px; background-color: #f8f9fa; border-radius: 4px; margin-top: 10px; font-size: 0.9em; color: #555; min-height: 1.2em; }
+        .status.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .math-container { display: inline-block; }
+        .view-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .view-btn { background-color: #3498db; flex-grow: 1; }
+        .view-btn.active { background-color: #2ecc71; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>二重积分可视化 (X型区域)</h1> <!-- Updated H1 -->
+
+        <div class="description">
+            <p>此可视化展示了在给定 X 型区域上计算二重积分 <span class="math-container">\(\iint_R f(x, y) \, \mathrm{d}A\)</span> 的过程，采用 <span class="math-container">\(\mathrm{d}y\,\mathrm{d}x\)</span> 积分顺序。3D 图采用正交投影，并提供了主视图和侧视图。</p>
+            <p>积分区域定义为: <span class="math-container">\(a \le x \le b, \quad h_1(x) \le y \le h_2(x)\)</span>.</p>
+            <p>动画将沿 X 轴扫描垂直切片。</p>
+            <p>左侧3D图显示函数曲面、侧面轮廓和当前扫描的切片，右侧2D图显示积分区域和扫描线。</p>
+            <div class="status" id="status">准备就绪</div>
+        </div>
+
+        <div class="controls">
+             <!-- Function/Range and Boundary Controls -->
+            <div class="control-group">
+                <h2>函数与范围</h2>
+                <label for="function">被积函数 \(f(x, y)\):</label>
+                <input type="text" id="function" value="6 - (x-2)^2/2 - (y-5)^2/2" disabled>
+                <label for="x-range">积分 \(x\) 范围 [a, b]:</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="x-min" step="0.1">
+                    <input type="number" id="x-max" step="0.1">
+                </div>
+                <label for="y-range">绘图 \(y\) 范围 [c, d]:</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="y-min" step="0.1">
+                    <input type="number" id="y-max" step="0.1">
+                </div>
+            </div>
+            <div class="control-group">
+                <h2>积分区域边界</h2>
+                <label for="y-lower">\(y\)下边界 \(h_1(x)\):</label>
+                <input type="text" id="y-lower">
+                <label for="y-upper">\(y\)上边界 \(h_2(x)\):</label>
+                <input type="text" id="y-upper">
+                 <small>更改边界或范围后会自动重绘。</small>
+            </div>
+            <div class="control-group">
+                <h2>动画与视图控制</h2>
+                <label for="frames">动画帧数:</label>
+                <input type="number" id="frames" value="30" min="10" max="200">
+
+                <div style="margin-top: 10px;">
+                    <button id="start-btn">开始动画</button>
+                    <button id="stop-btn" disabled>停止动画</button>
+                    <button id="reset-btn">重置为默认值</button>
+                </div>
+
+                <!-- *** REMOVED Top and Front View BUTTONS *** -->
+                <div class="view-controls">
+                    <button id="main-view-btn" class="view-btn active">主视图</button>
+                    <button id="side-view-btn" class="view-btn">侧视图 (X)</button>
+                </div>
+                <!-- ****************************************** -->
+
+                <div class="status" id="animation-status">动画未开始</div>
+            </div>
+        </div>
+
+        <div class="plot-container">
+            <div id="plot3d" class="plot"></div>
+            <div id="plot2d" class="plot"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global Variables and Constants ---
+        let animationId = null;
+        let currentFrame = 0;
+        let totalFrames = 30;
+        const animationType = 'dydx';
+        let isAnimating = false;
+        let lastTimestamp = 0;
+        let plotInitialized = false;
+        const mathScope = {};
+        const fixedFuncStr = "6 - (x-2)^2/2 - (y-5)^2/2";
+        const xTypeDefaults = { xMin: 1, xMax: 3, yMin: 3, yMax: 7, yLower: "(x-2)^2 + 3", yUpper: "-(x-2)^2 + 7" };
+
+        // DOM elements
+        const plot3d = document.getElementById('plot3d');
+        const plot2d = document.getElementById('plot2d');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const framesInput = document.getElementById('frames');
+        const statusElement = document.getElementById('status');
+        const animationStatusElement = document.getElementById('animation-status');
+        const funcInput = document.getElementById('function');
+        const xMinInput = document.getElementById('x-min');
+        const xMaxInput = document.getElementById('x-max');
+        const yMinInput = document.getElementById('y-min');
+        const yMaxInput = document.getElementById('y-max');
+        const yLowerInput = document.getElementById('y-lower');
+        const yUpperInput = document.getElementById('y-upper');
+        const allInputs = [xMinInput, xMaxInput, yMinInput, yMaxInput, yLowerInput, yUpperInput, framesInput];
+        const mainViewBtn = document.getElementById('main-view-btn');
+        const sideViewBtn = document.getElementById('side-view-btn');
+        // Removed topViewBtn, frontViewBtn
+
+        // --- Camera Angles (Orthographic with 2 Views) ---
+        const viewAngles = {
+            main: {
+                eye: { x: -1.7, y: -1.7, z: 1.2 }, up: { x: 0, y: 0, z: 1 },
+                center: { x: 0, y: 0, z: 0 }, projection: { type: 'orthographic' }
+            },
+            // Removed 'top' view
+            side: { // Looking along positive X
+                eye: { x: 2.5, y: 0, z: 0 }, up: { x: 0, y: 0, z: 1 }, // Z is up
+                center: { x: 0, y: 0, z: 0 }, projection: { type: 'orthographic' }
+            }
+            // Removed 'front' view
+        };
+
+        // --- Utility Functions ---
+        function updateStatus(message, isError = false) { statusElement.textContent = message; statusElement.classList.toggle('error', isError); if (isError) console.error(message); else console.log(message); }
+        function updateAnimationStatus(message) { animationStatusElement.textContent = message; }
+        function evaluate(expr, scope) { try { const result = math.evaluate(expr, scope); if (typeof result === 'object' && result.isComplex) return NaN; if (typeof result !== 'number' || !isFinite(result)) return NaN; return result; } catch (e) { console.warn(`Expr Error: "${expr}" - ${e.message}`); return NaN; } }
+        function generateArray(start, end, points) { if (isNaN(start) || isNaN(end) || isNaN(points) || start > end || points < 2) return []; const step = (end - start) / (points - 1); return Array.from({ length: points }, (_, i) => start + i * step); }
+
+        // Updated setView to handle two buttons
+        function setView(viewType) {
+            if (!plotInitialized) return;
+            mainViewBtn.classList.toggle('active', viewType === 'main');
+            sideViewBtn.classList.toggle('active', viewType === 'side');
+            Plotly.relayout('plot3d', { 'scene.camera': viewAngles[viewType] })
+                  .catch(err => updateStatus(`Set View Error: ${err.message}`, true));
+        }
+        function applyDefaults(defaults) { xMinInput.value = defaults.xMin; xMaxInput.value = defaults.xMax; yMinInput.value = defaults.yMin; yMaxInput.value = defaults.yMax; yLowerInput.value = defaults.yLower; yUpperInput.value = defaults.yUpper; }
+
+
+        // --- Plotting Functions ---
+        function initPlots() {
+            if (isAnimating) stopAnimation();
+            updateStatus("Initializing plots...");
+            statusElement.classList.remove('error');
+            plotInitialized = false;
+
+            try {
+                const funcStr = fixedFuncStr;
+                const a = parseFloat(xMinInput.value); const b = parseFloat(xMaxInput.value);
+                const c = parseFloat(yMinInput.value); const d = parseFloat(yMaxInput.value);
+                const h1Str = yLowerInput.value; const h2Str = yUpperInput.value;
+
+                if (isNaN(a) || isNaN(b) || isNaN(c) || isNaN(d)) throw new Error("Invalid numeric range (a, b, c, d)");
+                if (b <= a || d <= c) throw new Error("Range max must be greater than min");
+                if (!h1Str || !h2Str ) throw new Error("Boundary function expressions cannot be empty");
+
+                const N = 100; const M = 100;
+
+                // Calculate Surface Data
+                const xSurfPoints = generateArray(a, b, N); const ySurfPoints = generateArray(c, d, N);
+                const zSurf = []; let zMin = Infinity, zMax = -Infinity;
+                for (let j = 0; j < N; j++) { const y = ySurfPoints[j]; const row = []; mathScope.y = y; for (let i = 0; i < N; i++) { const x = xSurfPoints[i]; mathScope.x = x; let yLowerVal = evaluate(h1Str, mathScope); let yUpperVal = evaluate(h2Str, mathScope); let inRegion = (!isNaN(yLowerVal) && !isNaN(yUpperVal)) && (x >= a && x <= b) && (y >= yLowerVal && y <= yUpperVal); if (inRegion) { const zVal = evaluate(funcStr, mathScope); if (!isNaN(zVal)) { row.push(zVal); zMin = Math.min(zMin, zVal); zMax = Math.max(zMax, zVal); } else { row.push(null); } } else { row.push(null); } } zSurf.push(row); }
+                const zRange = [Math.min(0, zMin - Math.abs(zMax - zMin) * 0.1), Math.max(0, zMax + Math.abs(zMax - zMin) * 0.1)];
+                if (!isFinite(zRange[0]) || !isFinite(zRange[1]) || zRange[0] === zRange[1]) zRange[1] = zRange[0] + 1;
+
+                // Calculate Boundary Data
+                const xBoundaryPoints = generateArray(a, b, M);
+                const boundaryData = { lower: [], upper: [] };
+                for (const x of xBoundaryPoints) { mathScope.x = x; const yLower = evaluate(h1Str, mathScope); const yUpper = evaluate(h2Str, mathScope); if (!isNaN(yLower)) { const zLowerSurf = evaluate(funcStr, { x, y: yLower }); if (!isNaN(zLowerSurf)) boundaryData.lower.push({ x, y: yLower, z_surf: zLowerSurf, z_base: 0 }); } if (!isNaN(yUpper)) { const zUpperSurf = evaluate(funcStr, { x, y: yUpper }); if (!isNaN(zUpperSurf)) boundaryData.upper.push({ x, y: yUpper, z_surf: zUpperSurf, z_base: 0 }); } }
+
+                // Prepare 3D Plot Traces
+                const traces3d = [];
+                traces3d.push({ x: xSurfPoints, y: ySurfPoints, z: zSurf, type: 'surface', colorscale: 'Viridis', opacity: 0.80, showscale: false, lighting: { ambient: 0.8, diffuse: 0.8, specular: 0.1, roughness: 0.5 }, name: 'f(x,y) in Region', uid: 'surface' });
+                traces3d.push({ x: [], y: [], z: [], type: 'surface', opacity: 0.7, colorscale: [[0, 'red'], [1, 'red']], showscale: false, name: '扫描切片', uid: 'slice' });
+                if (boundaryData.lower.length > 0) traces3d.push({ x: boundaryData.lower.map(p => p.x), y: boundaryData.lower.map(p => p.y), z: boundaryData.lower.map(p => p.z_base), type: 'scatter3d', mode: 'lines', line: { color: 'blue', width: 3 }, name: 'h1(x) 在 XOY' });
+                if (boundaryData.lower.length > 0) traces3d.push({ x: boundaryData.lower.map(p => p.x), y: boundaryData.lower.map(p => p.y), z: boundaryData.lower.map(p => p.z_surf), type: 'scatter3d', mode: 'lines', line: { color: 'magenta', width: 4 }, name: 'h1(x) 在 曲面' });
+                if (boundaryData.upper.length > 0) traces3d.push({ x: boundaryData.upper.map(p => p.x), y: boundaryData.upper.map(p => p.y), z: boundaryData.upper.map(p => p.z_base), type: 'scatter3d', mode: 'lines', line: { color: 'black', width: 3 }, name: 'h2(x) 在 XOY' });
+                if (boundaryData.upper.length > 0) traces3d.push({ x: boundaryData.upper.map(p => p.x), y: boundaryData.upper.map(p => p.y), z: boundaryData.upper.map(p => p.z_surf), type: 'scatter3d', mode: 'lines', line: { color: 'cyan', width: 4 }, name: 'h2(x) 在 曲面' });
+                const startLower = boundaryData.lower.find(p => p.x >= a); const startUpper = boundaryData.upper.find(p => p.x >= a); if (startLower) traces3d.push({ x: [startLower.x, startLower.x], y: [startLower.y, startLower.y], z: [startLower.z_surf, startLower.z_base], type: 'scatter3d', mode: 'lines', line: { color: 'grey', width: 2 }, showlegend: false }); if (startUpper) traces3d.push({ x: [startUpper.x, startUpper.x], y: [startUpper.y, startUpper.y], z: [startUpper.z_surf, startUpper.z_base], type: 'scatter3d', mode: 'lines', line: { color: 'grey', width: 2 }, showlegend: false });
+                const endLower = boundaryData.lower.slice().reverse().find(p => p.x <= b); const endUpper = boundaryData.upper.slice().reverse().find(p => p.x <= b); if (endLower) traces3d.push({ x: [endLower.x, endLower.x], y: [endLower.y, endLower.y], z: [endLower.z_surf, endLower.z_base], type: 'scatter3d', mode: 'lines', line: { color: 'grey', width: 2 }, showlegend: false }); if (endUpper) traces3d.push({ x: [endUpper.x, endUpper.x], y: [endUpper.y, endUpper.y], z: [endUpper.z_surf, endUpper.z_base], type: 'scatter3d', mode: 'lines', line: { color: 'grey', width: 2 }, showlegend: false });
+
+                // Create Plots
+                const plotPromises = [];
+                const layout3d = {
+                    title: '3D: 函数曲面、轮廓与扫描切片',
+                    scene: {
+                        xaxis: {title: 'X', range: [a, b], autorange: false},
+                        yaxis: {title: 'Y', range: [c, d], autorange: false},
+                        zaxis: {title: 'Z', range: zRange, autorange: false },
+                        camera: viewAngles.main, aspectmode: 'data'
+                    },
+                    margin: { l: 10, r: 10, b: 10, t: 50 }, hovermode: 'closest',
+                    legend: { x: 0.8, y: 0.9 }
+                };
+                Plotly.purge('plot3d');
+                plotPromises.push(Plotly.newPlot('plot3d', traces3d, layout3d));
+
+                // 2D Plot
+                const yLowerData2D = boundaryData.lower; const yUpperData2D = boundaryData.upper;
+                let fillTraceX = [], fillTraceY = []; if (yLowerData2D.length > 0 && yUpperData2D.length > 0) { fillTraceX = [...yLowerData2D.map(p => p.x), ...yUpperData2D.map(p => p.x).reverse()]; fillTraceY = [...yLowerData2D.map(p => p.y), ...yUpperData2D.map(p => p.y).reverse()]; }
+                const regionTrace = { x: fillTraceX, y: fillTraceY, fill: 'toself', fillcolor: 'rgba(173, 216, 230, 0.6)', line: { color: 'transparent' }, name: '积分区域', type: 'scatter' };
+                const lowerBoundary2dTrace = { x: yLowerData2D.map(p => p.x), y: yLowerData2D.map(p => p.y), mode: 'lines', line: { color: 'blue', width: 2 }, name: 'y=h1(x)', type: 'scatter' };
+                const upperBoundary2dTrace = { x: yUpperData2D.map(p => p.x), y: yUpperData2D.map(p => p.y), mode: 'lines', line: { color: 'black', width: 2 }, name: 'y=h2(x)', type: 'scatter' };
+                const scanLineTrace = { x: [], y: [], mode: 'lines', line: { color: 'red', width: 3 }, name: '扫描线', type: 'scatter', uid: 'scanline' };
+                const layout2d = { title: '2D: 积分区域与扫描线 (dydx)', xaxis: { title: 'X', range: [a, b], autorange: false, constrain: 'domain' }, yaxis: { title: 'Y', range: [c, d], autorange: false, scaleanchor: 'x'}, margin: { l: 40, r: 10, b: 40, t: 50 }, showlegend: true, legend: {x: 1, xanchor: 'right', y: 1} };
+                Plotly.purge('plot2d');
+                plotPromises.push(Plotly.newPlot('plot2d', [regionTrace, lowerBoundary2dTrace, upperBoundary2dTrace, scanLineTrace], layout2d));
+
+                Promise.all(plotPromises).then(() => {
+                    updateStatus("Plots initialized successfully."); plotInitialized = true;
+                    startBtn.disabled = false; stopBtn.disabled = true; resetBtn.disabled = false;
+                }).catch(err => { throw new Error(`Plot creation failed: ${err.message}`); });
+
+            } catch (error) {
+                updateStatus(`Initialization Error: ${error.message}`, true);
+                startBtn.disabled = true; stopBtn.disabled = true; resetBtn.disabled = false;
+                plotInitialized = false; console.error(error);
+            }
+        }
+
+        // --- Animation Logic ---
+        function updateAnimationFrame(timestamp) {
+             if (!isAnimating || !plotInitialized) return;
+             if (!lastTimestamp) lastTimestamp = timestamp;
+             const elapsed = timestamp - lastTimestamp;
+             const frameDuration = 1000 / Math.max(1, totalFrames / (totalFrames / 30));
+             if (elapsed >= frameDuration) {
+                 lastTimestamp = timestamp - (elapsed % frameDuration);
+                 try {
+                     const funcStr = fixedFuncStr;
+                     const a = parseFloat(xMinInput.value); const b = parseFloat(xMaxInput.value);
+                     const c = parseFloat(yMinInput.value); const d = parseFloat(yMaxInput.value);
+                     const h1Str = yLowerInput.value; const h2Str = yUpperInput.value;
+                     totalFrames = parseInt(framesInput.value); if (totalFrames < 2) totalFrames = 2;
+                     let t = currentFrame / (totalFrames - 1);
+                     let currentX, yStart, yEnd;
+                     let color = 'red', scanLineX = [], scanLineY = [];
+                     let xSlice = [], ySlice = [], zBottom = [], zTop = [];
+                     let plotUpdateNeeded = false;
+                     let currentPlotTitle = "";
+                     currentX = a + t * (b - a);
+                     mathScope.x = currentX;
+                     yStart = evaluate(h1Str, mathScope); yEnd = evaluate(h2Str, mathScope);
+                     currentPlotTitle = `dydx: x = ${currentX.toFixed(2)}`;
+                     if (!isNaN(yStart) && !isNaN(yEnd) && yEnd > yStart) {
+                          yStart = Math.max(c, yStart); yEnd = Math.min(d, yEnd);
+                          if (yEnd > yStart) {
+                             ySlice = generateArray(yStart, yEnd, 20); xSlice = Array(ySlice.length).fill(currentX);
+                             zBottom = Array(ySlice.length).fill(0); zTop = ySlice.map(yi => evaluate(funcStr, {x: currentX, y: yi}));
+                             const validIndices = zTop.map((z, i) => !isNaN(z) ? i : -1).filter(i => i !== -1);
+                             if (validIndices.length > 1) { xSlice = validIndices.map(i => xSlice[i]); ySlice = validIndices.map(i => ySlice[i]); zBottom = validIndices.map(i => zBottom[i]); zTop = validIndices.map(i => zTop[i]); scanLineX = [currentX, currentX]; scanLineY = [yStart, yEnd]; plotUpdateNeeded = true; }
+                          }
+                     }
+                     const updatePromises = [Plotly.relayout('plot3d', {'title': currentPlotTitle})];
+                     const sliceTraceIndex = 1; const scanLineTraceIndex2D = 3;
+                     if (plotUpdateNeeded) {
+                         updatePromises.push(Plotly.restyle('plot3d', { x: [[xSlice, xSlice]], y: [[ySlice, ySlice]], z: [[zBottom, zTop]], 'colorscale': [[[0, color], [1, color]]] }, [sliceTraceIndex]));
+                         updatePromises.push(Plotly.restyle('plot2d', { x: [scanLineX], y: [scanLineY], 'line.color': [color] }, [scanLineTraceIndex2D]));
+                     } else {
+                         updatePromises.push(Plotly.restyle('plot3d', { x: [[]], y: [[]], z: [[]] }, [sliceTraceIndex]));
+                         updatePromises.push(Plotly.restyle('plot2d', { x: [[]], y: [[]] }, [scanLineTraceIndex2D]));
+                     }
+                     Promise.all(updatePromises).catch(err => console.warn(`Plot update warning: ${err.message}`));
+                     currentFrame++; updateAnimationStatus(`Animating: Frame ${currentFrame}/${totalFrames}`);
+                     if (currentFrame >= totalFrames) { stopAnimation(); updateAnimationStatus("Animation complete."); }
+                 } catch (error) { updateStatus(`Animation Error: ${error.message}`, true); stopAnimation(); }
+             }
+             if (isAnimating) animationId = requestAnimationFrame(updateAnimationFrame);
+         }
+
+        // --- Control Functions ---
+        function startAnimation() { if (isAnimating || !plotInitialized) return; if (!startBtn.disabled) { isAnimating = true; currentFrame = 0; lastTimestamp = 0; startBtn.disabled = true; stopBtn.disabled = false; resetBtn.disabled = true; allInputs.forEach(input => input.disabled = true); updateAnimationStatus("Animation started..."); animationId = requestAnimationFrame(updateAnimationFrame); } }
+        function stopAnimation() { if (!isAnimating && stopBtn.disabled) return; isAnimating = false; startBtn.disabled = !plotInitialized; stopBtn.disabled = true; resetBtn.disabled = false; allInputs.forEach(input => input.disabled = false); if (animationId) cancelAnimationFrame(animationId); animationId = null; const currentStatus = animationStatusElement.textContent; if (!currentStatus.includes("complete") && !currentStatus.includes("Error")) { updateAnimationStatus("Animation stopped."); } }
+        function resetValues() { stopAnimation(); applyDefaults(xTypeDefaults); initPlots(); updateAnimationStatus("Reset to default values."); statusElement.classList.remove('error'); statusElement.textContent = "Plots reset to defaults."; }
+
+        // --- Event Listeners ---
+         startBtn.addEventListener('click', startAnimation);
+         stopBtn.addEventListener('click', stopAnimation);
+         resetBtn.addEventListener('click', resetValues);
+         // View Buttons
+         mainViewBtn.addEventListener('click', () => setView('main'));
+         sideViewBtn.addEventListener('click', () => setView('side'));
+         // Removed listeners for top and front views
+         // Input Changes
+         [xMinInput, xMaxInput, yMinInput, yMaxInput, yLowerInput, yUpperInput].forEach(input => { input.addEventListener('change', () => { if (isAnimating) stopAnimation(); initPlots(); }); });
+         framesInput.addEventListener('change', () => { totalFrames = parseInt(framesInput.value); if (totalFrames < 2) totalFrames = 2; if (!isAnimating) updateAnimationStatus(`Frame count set to ${totalFrames}`); });
+
+        // --- Initial Setup ---
+        window.addEventListener('load', () => {
+            funcInput.value = fixedFuncStr;
+            applyDefaults(xTypeDefaults);
+            initPlots();
+            if (!plotInitialized) {
+                 updateStatus("Page loaded, but initial plot failed. Check inputs/console.", true);
+            }
+        });
+
+    </script>
+</body>
+</html>
